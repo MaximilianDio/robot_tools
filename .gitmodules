@@ -1,0 +1,6 @@
+[submodule "robot_visualization"]
+	path = robot_visualization
+	url = https://github.com/MaximilianDio/robot_visualization.git
+[submodule "robot_assets"]
+	path = robot_assets
+	url = https://github.com/MaximilianDio/robot_assets.git
