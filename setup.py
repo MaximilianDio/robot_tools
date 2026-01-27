@@ -19,6 +19,8 @@ setup(
         'numpy',
         'pyvista',
         'scipy',
+        'matplotlib',
+        'opencv-python',
         # urdfpy dependencies (since we're including it as a submodule)
         'lxml',
         'networkx>=3.0',
