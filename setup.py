@@ -10,7 +10,7 @@ setup(
     description='A Python package for working with robot models and visualization using URDF files and PyVista',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    packages=find_packages(exclude=['tests', 'tests.*', 'examples', 'examples.*', 'build', 'build.*']) + ['urdfpy'],
+    packages=find_packages(exclude=['tests', 'tests.*', 'examples', 'examples.*', 'build', 'build.*']) + ['urdfpy', 'robot_video_tools'],
     package_dir={
         'urdfpy': 'robot_visualization/urdfpy/urdfpy'
     },
@@ -21,6 +21,8 @@ setup(
         'scipy',
         'matplotlib',
         'opencv-python',
+        'natsort',
+        'imageio',
         # urdfpy dependencies (since we're including it as a submodule)
         'lxml',
         'networkx>=3.0',
