@@ -48,6 +48,20 @@ class RobotModel:
         
         return T, J
     
+    def update_frame_kinematics(self, frame_name, q, dq, ddq) -> tuple:
+            
+        pinocchio.forwardKinematics(self.pin_model, self.pin_data, q, dq, ddq)
+        pinocchio.updateFramePlacements(self.pin_model, self.pin_data)
+        
+        frame_id = self.pin_model.getFrameId(frame_name)
+        T = self.pin_data.oMf[frame_id]
+        T = self.T0 * T  # apply base transformation
+                
+        v = pinocchio.getFrameVelocity(self.pin_model, self.pin_data, frame_id, pinocchio.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+        a = pinocchio.getFrameAcceleration(self.pin_model, self.pin_data, frame_id, pinocchio.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+        
+        return T, v, a
+    
     def update_dynamics(self, q, dq) -> tuple:
         
         # FIXME: the gravity vector is assumed to be [0, 0, -9.81] in the base frame.

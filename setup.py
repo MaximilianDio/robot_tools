@@ -14,13 +14,13 @@ setup(
     package_dir={
         'urdfpy': 'robot_visualization/urdfpy/urdfpy'
     },
-    python_requires='>=3.7',
+    python_requires='>=3.10',
     install_requires=[
         'numpy',
         'pyvista',
         'scipy',
         'matplotlib',
-        'opencv-python',
+        # 'opencv-python',
         'natsort',
         'imageio',
         # urdfpy dependencies (since we're including it as a submodule)
@@ -31,6 +31,7 @@ setup(
         'pyrender>=0.1.20',
         'six',
         'trimesh',
+        'pin', # pinocchio
     ],
     extras_require={
         'dev': [
@@ -45,9 +46,6 @@ setup(
         'Intended Audience :: Science/Research',
         'Topic :: Scientific/Engineering :: Visualization',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
     ],
