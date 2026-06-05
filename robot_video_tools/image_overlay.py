@@ -73,14 +73,16 @@ def _apply_calibration(
     plotter.renderer.ResetCameraClippingRange()
 
     plotter.remove_all_lights()
-    
-    for pos in [(2, 1, 2), (2, -1, 2)]:
-        light = pyvista.Light(position=pos, color='white', intensity=0.8)
-        light.positional = True
-        plotter.add_light(light)
 
-
-    pyvista.Property().ambient = 1.0
+    # Studio back lights: symmetric left/right, placed 1 m behind the camera along the optical axis
+    cam_pos     = T_WC[:3, 3]
+    cam_forward = T_WC[:3, 2]   # +Z = optical axis
+    cam_right   = T_WC[:3, 0]
+    for side in (1.5, -1.5):
+        pos = cam_pos - cam_forward + side * 0.5 * cam_right
+        back_light = pyvista.Light(position=pos.tolist(), color='white', intensity=0.8)
+        # back_light.positional = True
+        plotter.add_light(back_light)
 
 
 def calibrate_camera(
@@ -148,7 +150,7 @@ class ImageOverlay:
     Image ``k`` is used when ``timestamps[k] < t <= timestamps[k+1]``.
     """
 
-    def __init__(self, image_folder: str, calibration: CalibrationPaths) -> None:
+    def __init__(self, image_folder: str, calibration: CalibrationPaths, n_layers: int = 1) -> None:
         self._folder      = image_folder
         self._calibration = calibration
 
@@ -175,10 +177,22 @@ class ImageOverlay:
         self._plotter = pyvista.Plotter(off_screen=True, window_size=[w, h])
         _apply_calibration(self._plotter, intrinsic, O_T_C, first_image)
 
+        self._extra_plotters: list[pyvista.Plotter] = []
+        for _ in range(n_layers - 1):
+            p = pyvista.Plotter(off_screen=True, window_size=[w, h])
+            _apply_calibration(p, intrinsic, O_T_C, first_image)
+            self._extra_plotters.append(p)
+
     @property
     def plotter(self) -> pyvista.Plotter:
-        """Calibrated off-screen plotter. Add scene objects to it normally."""
+        """Calibrated off-screen plotter for layer 0. Add scene objects to it normally."""
         return self._plotter
+
+    def layer(self, i: int) -> pyvista.Plotter:
+        """Return the plotter for rendering layer i (0 = background, higher = foreground)."""
+        if i == 0:
+            return self._plotter
+        return self._extra_plotters[i - 1]
 
     def get_frame_index(self, t: float) -> Optional[int]:
         """Return the index of the image frame corresponding to time t, or None if out of range."""
@@ -206,22 +220,23 @@ class ImageOverlay:
 
         path   = os.path.join(self._folder, self._images[k])
         bg     = cv2.undistort(cv2.imread(path), self._intrinsic, self._dist)
-        bg_rgb = cv2.cvtColor(bg, cv2.COLOR_BGR2RGB)
+        result = Image.fromarray(cv2.cvtColor(bg, cv2.COLOR_BGR2RGB)).convert("RGBA")
 
-        overlay_rgba = self._plotter.screenshot(
-            return_img=True, transparent_background=True
-        )
+        for plotter in [self._plotter] + self._extra_plotters:
+            plotter.render()
+            rgba = plotter.screenshot(return_img=True, transparent_background=True)
+            result = Image.alpha_composite(result, Image.fromarray(rgba).convert("RGBA"))
 
-        result = Image.alpha_composite(
-            Image.fromarray(bg_rgb).convert("RGBA"),
-            Image.fromarray(overlay_rgba).convert("RGBA"),
-        )
         return cv2.cvtColor(np.array(result.convert("RGB")), cv2.COLOR_RGB2BGR), k, self._timestamps[k]
 
     _FONT_CANDIDATES = [
+        # Linux
         "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",          # Times-compatible, closest to LaTeX
         "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+        # Windows
+        "C:/Windows/Fonts/times.ttf",
+        "C:/Windows/Fonts/georgia.ttf",
     ]
 
     def add_time_stamp(self, frame: np.ndarray, timestamp: float, position=(10, 10), font_scale=1.0, color=(255, 255, 255), thickness=1) -> np.ndarray:
