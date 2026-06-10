@@ -20,7 +20,7 @@ setup(
         'pyvista',
         'scipy',
         'matplotlib',
-        # 'opencv-python',
+        'opencv-python',
         'natsort',
         'imageio',
         # urdfpy dependencies (since we're including it as a submodule)
@@ -30,7 +30,7 @@ setup(
         'pycollada==0.6',
         'pyrender>=0.1.20',
         'six',
-        'trimesh',
+        'trimesh==3.2.5',
         'pin', # pinocchio
     ],
     extras_require={
