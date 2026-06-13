@@ -8,13 +8,11 @@ the virtual camera to the physical one via hand-eye calibration data.
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import cv2
-from pyrender import light
 import pyvista
-pyvista.global_theme.transparent_background = True
 from natsort import natsorted
 from PIL import Image, ImageDraw, ImageFont
 
@@ -201,7 +199,7 @@ class ImageOverlay:
             return None
         return k
 
-    def render(self, t: float) -> Optional[np.ndarray]:
+    def render(self, t: float) -> Optional[Tuple[np.ndarray, int, float]]:
         """
         Composite the current plotter scene onto the background image at time ``t``.
 
@@ -211,8 +209,9 @@ class ImageOverlay:
             t: Query timestamp in the same units as the image filenames (seconds).
 
         Returns:
-            Composited BGR ``np.ndarray``, or ``None`` if ``t`` is outside the
-            image sequence range.
+            Tuple ``(frame, k, timestamp)`` with the composited BGR frame, the
+            index of the background image used, and its timestamp — or ``None``
+            if ``t`` is outside the image sequence range.
         """
         k = self.get_frame_index(t)
         if k is None:

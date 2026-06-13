@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robot_tools"
+version = "0.2.0"
+description = "Modeling, collision checking, visualization, and video tools for robot path planning"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Maximilian Dio", email = "maximilian.dio@fau.de" }]
+keywords = ["robotics", "path-planning", "urdf", "pinocchio", "pyvista"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    # robot_tools (kinematics, dynamics, collisions)
+    "numpy>=1.24",
+    "pin>=4.0",          # pinocchio (pulls numpy>=2 via eigenpy)
+    "scipy>=1.13",       # first release with numpy 2 support
+    # robot_visualization
+    "pyvista>=0.40",
+    # urdfpy (vendored fork, see robot_visualization/urdfpy)
+    "lxml",
+    "networkx>=3.0",
+    "pillow",
+    "pycollada==0.6",
+    "pyrender>=0.1.20",
+    "six",
+    "trimesh>=3.9",
+    # robot_video_tools
+    "matplotlib>=3.9",   # numpy 2 compatible
+    "opencv-python",
+    "natsort",
+    "imageio",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "flake8"]
+
+[project.scripts]
+robot-gen-video = "robot_video_tools.gen_video:main"
+
+[project.urls]
+Repository = "https://github.com/MaximilianDio/robot_tools.git"
+
+# One install provides four import packages. robot_visualization and urdfpy
+# live in git submodules (see .gitmodules); clone with --recursive.
+[tool.setuptools]
+packages = [
+    "robot_tools",
+    "robot_visualization",
+    "robot_video_tools",
+    "urdfpy",
+]
+
+[tool.setuptools.package-dir]
+robot_tools = "robot_tools"
+robot_visualization = "robot_visualization/robot_visualization"
+robot_video_tools = "robot_video_tools"
+urdfpy = "robot_visualization/urdfpy/urdfpy"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -52,7 +52,10 @@ def generate_video_from_images(image_folder: str, output_video: str) -> None:
 
     # Some capture pipelines write duplicate entries at t=0 and t=t_end;
     # trim leading/trailing duplicates so we start and end at unique timestamps.
-    idx_first = next(i for i, v in enumerate(images_timestamps) if v != 0) - 1
+    idx_first = max(
+        0,
+        next((i for i, v in enumerate(images_timestamps) if v != 0), 1) - 1,
+    )
     idx_last = next(
         i for i, v in enumerate(images_timestamps) if v == images_timestamps[-1]
     )
@@ -134,7 +137,19 @@ def gif_to_mp4(input_gif: str, output_mp4: str, desired_duration: float) -> None
     out.release()
 
 
+def main() -> None:
+    """Command-line entry point: ``robot-gen-video <image_folder> <output_video>``."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Build an MP4 video from a folder of timestamped PNG frames."
+    )
+    parser.add_argument("image_folder", help="Directory containing *_<seconds>.png frames")
+    parser.add_argument("output_video", help="Destination path of the .mp4 file")
+    args = parser.parse_args()
+
+    generate_video_from_images(args.image_folder, args.output_video)
+
+
 if __name__ == "__main__":
-    image_folder = "out/rhtoppra_camera_images"
-    output_video = "out/rhtoppra_camera_images/video.mp4"
-    generate_video_from_images(image_folder, output_video)
+    main()

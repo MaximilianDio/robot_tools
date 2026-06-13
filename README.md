@@ -1,476 +1,248 @@
 # robot_tools
 
-A comprehensive Python package for robot path planning, visualization, and modeling. This package provides tools for robot kinematics, dynamics, collision detection, and interactive 3D visualization using URDF files.
+Modeling, collision checking, 3D visualization, and video tools for robot path planning.
 
-## Features
+| Package | Purpose |
+|---|---|
+| `robot_tools` | Kinematics, dynamics (Pinocchio), and point-collision checking |
+| `robot_visualization` | Interactive 3D robot visualization with PyVista |
+| `robot_video_tools` | Video generation, animation, and camera-calibrated image overlays |
+| `urdfpy` | Vendored URDF parser fork (no separate install needed) |
 
-### Robot Modeling (`robot_tools`)
-- **Kinematics & Dynamics**: Forward kinematics, Jacobian computation, and dynamics calculations using Pinocchio
-- **Collision Detection**: Efficient collision checking with ellipsoid, cylinder, and box primitives
-- **URDF Support**: Load and work with robot models defined in URDF format
-- **Flexible Base Transformations**: Support for arbitrary robot base positions and orientations
-
-### Robot Visualization (`robot_visualization`)
-- **Interactive 3D Visualization**: Real-time robot visualization using PyVista
-- **End-Effector Tracking**: Visualize end-effector positions, orientations, and trajectories
-- **Animation Support**: Create animations and export them as GIF files
-- **Visualization Primitives**: Built-in support for coordinate frames, arrows, and paths
-- **Graph Visualization**: Display motion planning graphs and roadmaps
-
-### URDF Parsing (`urdfpy`)
-- **Complete URDF Support**: Parse and manipulate URDF files
-- **Mesh Loading**: Support for STL, DAE, and OBJ mesh formats
-- **Kinematic Tree**: Access robot kinematic structure and joint information
+<p align="center">
+  <img src="docs/images/iiwa7_motion.gif" alt="Animated iiwa7 following a joint-space path" width="48%">
+  <img src="docs/images/iiwa7_path.png" alt="iiwa7 with end-effector path, frames, and roadmap graph" width="48%">
+</p>
+<p align="center">
+  <em>Left: animated KUKA iiwa7 following a joint-space path. Right: start/goal configurations
+  with the end-effector path, intermediate EE frames, and a motion-planning roadmap (gray).</em>
+</p>
 
 ## Installation
 
-### Standard Installation
+### Prerequisites
+
+- Python ≥ 3.10
+
+### Install
+
+Clone with submodules — `robot_visualization`, its nested `urdfpy` fork, and
+`robot_assets` are git submodules:
 
 ```bash
-cd robot_tools
-pip install -e .
+git clone --recursive https://github.com/MaximilianDio/robot_tools.git
+# or, in an existing checkout:
+git submodule update --init --recursive
 ```
 
-### Development Installation
-
-For development with testing tools:
+Then install with:
 
 ```bash
-pip install -e ".[dev]"
+pip install ./robot_tools        # from the directory containing the clone
+# or equivalently, from inside the repository:
+pip install .
 ```
 
-### Dependencies
+This installs all four packages listed above together with their dependencies
+(Pinocchio, PyVista, OpenCV, ...). There is **no** need to install
+`robot_visualization` or `urdfpy` separately.
 
-This package automatically installs the following dependencies:
-- numpy (>=1.19.0)
-- pinocchio
-- pyvista (>=0.37.0)
-- scipy (>=1.7.0)
-- lxml (>=4.6.0)
-- networkx (>=3.0)
-- pillow (>=8.0.0)
-- pycollada (==0.6)
-- pyrender (>=0.1.20)
-- trimesh (>=3.9.0)
+### Development install
 
-## Quick Start
+```bash
+pip install -e ".[dev]"          # editable + pytest/flake8
+```
 
-### 1. Robot Modeling and Kinematics
+### Verify
+
+```bash
+python -c "import robot_tools, robot_visualization, robot_video_tools, urdfpy; print('ok')"
+```
+
+## Quickstart
+
+### Kinematics and dynamics (`robot_tools`)
 
 ```python
+import numpy as np
 from robot_tools import RobotModel
-import numpy as np
 
-# Load a robot model from URDF
-robot = RobotModel("iiwa7.urdf",
-                   p0=np.array([0.0, 0.0, 0.0]),  # base position
-                   R0=np.eye(3))                  # base orientation
+robot = RobotModel("robot_assets/urdf/iiwa7.urdf",
+                   p0=np.array([0.0, -1.0, 0.0]),  # base position in world frame
+                   R0=np.eye(3))                   # base orientation
 
-# Define joint configuration
-q = np.array([0.0, 0.5, 0.0, -1.0, 0.0, 1.0, 0.0])
-dq = np.zeros(7)  # joint velocities
+q  = np.array([1.0, 0.5, 0.0, -1.0, 0.0, 1.0, 0.0])
+dq = np.zeros(7)
 
-# Compute forward kinematics and Jacobian
-T, J = robot.update_kinematics("end_effector_link", q, dq)
-
-print("End-effector pose:", T)
-print("Jacobian:", J)
-
-# Compute dynamics
-M, c, g = robot.update_dynamics(q, dq)
-print("Mass matrix:", M)
-print("Coriolis/centrifugal:", c)
-print("Gravity:", g)
+T, J = robot.update_kinematics("lbr1_gripper_link_ee", q, dq)   # pose + 6xN Jacobian
+M, c, g = robot.update_dynamics(q, dq)                          # mass, Coriolis, gravity
 ```
 
-### 2. Collision Detection
+### Collision checking (`robot_tools`)
 
 ```python
-from robot_tools import EllipsoidCollision, CylinderCollision, BoxCollision, create_collision_objects
 import numpy as np
+from robot_tools import create_collision_objects
 
-# Define collision objects
 obstacles = [
-    {
-        "type": "ellipsoid",
-        "T": np.eye(4),  # transformation matrix
-        "xradius": 0.5,
-        "yradius": 0.5,
-        "zradius": 1.0
-    },
-    {
-        "type": "cylinder",
-        "T": np.eye(4),
-        "radius": 0.3,
-        "height": 1.0
-    },
-    {
-        "type": "box",
-        "T": np.eye(4),
-        "xsize": 0.5,
-        "ysize": 0.5,
-        "zsize": 1.0
-    }
+    {"type": "ellipsoid", "T": np.eye(4), "xradius": 0.5, "yradius": 0.3, "zradius": 0.4},
+    {"type": "cylinder",  "T": np.eye(4), "radius": 0.3, "height": 0.8},
+    {"type": "box",       "T": np.eye(4), "xsize": 0.6, "ysize": 0.6, "zsize": 0.6},
 ]
-
-# Create collision checkers
 collision_objects = create_collision_objects(obstacles)
 
-# Check for collisions
-point = np.array([0.0, 0.0, 0.5])
-for obj in collision_objects:
-    if obj.is_in_collision(point):
-        print(f"Point {point} is in collision!")
+point = np.array([0.1, 0.0, 0.2])
+in_collision = any(obj.is_in_collision(point) for obj in collision_objects)
 ```
 
-### 3. Robot Visualization
+<p align="center">
+  <img src="docs/images/collision_primitives.png" alt="Collision primitives with sampled points" width="65%">
+</p>
+<p align="center"><em>Sampled points tested against box, ellipsoid, and cylinder primitives
+(red = in collision).</em></p>
+
+New primitives plug in without touching the factory:
 
 ```python
-from robot_visualization import Robot
-import pyvista as pv
+from robot_tools import CollisionObject, register_collision_type
+
+class SphereCollision(CollisionObject):
+    def __init__(self, obstacle):
+        super().__init__(obstacle)
+        self.radius = obstacle["radius"]
+
+    def is_in_collision(self, point):
+        return np.linalg.norm(self.to_local(point)) <= self.radius
+
+register_collision_type("sphere", SphereCollision)
+```
+
+### 3D visualization (`robot_visualization`)
+
+```python
 import numpy as np
+import pyvista as pv
+from robot_visualization import Robot
 
-# Create a 3D plotter
 plotter = pv.Plotter()
-plotter.add_axes()
-
-# Load and visualize a robot
-robot = Robot("iiwa7.urdf",
-              plotter=plotter,
-              p0=np.array([0.0, 0.0, 0.0]),
-              R0=np.eye(3),
-              color='lightblue',
-              opacity=1.0)
-
-# Set initial robot mesh
+robot = Robot("robot_assets/urdf/iiwa7.urdf", plotter,
+              p0=np.array([0.0, -1.0, 0.0]), color="lightblue", opacity=1.0)
 robot.set_robot_mesh(id=0)
 
-# Update robot configuration
-q = np.array([0.5, 0.5, 0.0, -1.0, 0.0, 1.0, 0.0])
-robot.update(q, id=0)
+q0 = np.array([1.0, 0.5, 0.0, -1.0, 0.0, 1.0, 0.0])
+q1 = np.zeros(7)
+robot.update(q0, id=0)
 
-# Visualize end-effector
-robot.plot_ee_frame(q, ee_link_name="end_effector_link")
-
-# Display the visualization
-plotter.show()
-```
-
-### 4. End-Effector Path Visualization
-
-```python
-from robot_visualization import Robot
-import pyvista as pv
-import numpy as np
-
-plotter = pv.Plotter()
-robot = Robot("iiwa7.urdf", plotter=plotter)
-
-# Define start and goal configurations
-q_start = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-q_goal = np.array([1.0, 0.5, 0.0, -1.0, 0.0, 1.0, 0.0])
-
-# Interpolate between configurations
-num_steps = 20
-q_path = np.linspace(q_start, q_goal, num_steps)
-
-# Visualize the path
-robot.set_robot_mesh(id=0)
-robot.update(q_start, id=0)
-
-for q in q_path:
-    robot.plot_ee_frame(q, ee_link_name="end_effector_link")
-
-robot.plot_ee_path(q_path, ee_link_name="end_effector_link", color="blue", line_width=4)
+path = np.linspace(q0, q1, 20)
+for q in path:
+    robot.plot_ee_frame(q, ee_link_name="lbr1_gripper_link_ee", scale=0.05)
+robot.plot_ee_path(path, ee_link_name="lbr1_gripper_link_ee", color="blue")
 
 plotter.show()
 ```
 
-### 5. Robot Animation
+<p align="center">
+  <img src="docs/images/simple_robot.png" alt="Simple 3-DOF robot with end-effector path" width="65%">
+</p>
+<p align="center"><em>The bundled 3-DOF <code>simple_robot.urdf</code> sweeping its
+end-effector between two configurations.</em></p>
+
+### Video tools (`robot_video_tools`)
 
 ```python
-from robot_visualization import Robot
-import pyvista as pv
-import numpy as np
+from robot_video_tools import generate_video_from_images, gif_to_mp4
 
-plotter = pv.Plotter()
-robot = Robot("iiwa7.urdf", plotter=plotter, color='lightblue', opacity=1.0)
-
-# Setup animation
-q_start = np.array([1.0, 0.5, 0.0, -1.0, 0.0, 1.0, 0.0])
-q_goal = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-
-num_steps = 50
-q_path = np.linspace(q_start, q_goal, num_steps)
-
-robot.set_robot_mesh(id=0)
-
-# Create animation callback
-def update_robot(step):
-    robot.update(q_path[step], id=0)
-    robot.plot_ee_frame(q_path[step], ee_link_name="end_effector_link")
-
-# Run animation
-plotter.add_timer_event(max_steps=num_steps, duration=100, callback=update_robot)
-plotter.show()
+generate_video_from_images("out/camera_images", "out/video.mp4")
+gif_to_mp4("docs/images/iiwa7_motion.gif", "out/motion.mp4", desired_duration=5.0)
 ```
 
-### 6. Visualization Primitives
+`pip install` also provides a CLI: `robot-gen-video <image_folder> <output.mp4>`.
+
+For compositing PyVista scenes onto real, calibrated camera footage see
+`robot_video_tools.ImageOverlay` (hand-eye calibration files required):
 
 ```python
-from robot_visualization import AxesVisualizer, ArrowVisualizer
-import pyvista as pv
-import numpy as np
+from robot_video_tools import CalibrationPaths, ImageOverlay
 
-plotter = pv.Plotter()
-plotter.add_axes()
-
-# Create coordinate frame
-axes = AxesVisualizer(plotter, origin=[0, 0, 0], scale=1.0)
-axes.update(position=[1, 1, 1], rotation=np.array([0.1, 0.2, 0.3]))
-
-# Create arrow
-arrow = ArrowVisualizer(plotter, origin=[0, 0, 0], direction=[1, 0, 0], scale=0.5, color='red')
-arrow.update(origin=[0.5, 0.5, 0.5], direction=[0, 1, 0])
-
-plotter.show()
+overlay = ImageOverlay("path/to/images", CalibrationPaths.from_directory("calib/"))
+robot = Robot("robot_assets/urdf/iiwa7.urdf", plotter=overlay.plotter)
+frame, k, t_frame = overlay.render(t=1.25)   # composited BGR frame
 ```
-
-## Package Structure
-
-```
-robot_tools/
-├── robot_tools/              # Main package
-│   ├── __init__.py
-│   ├── robot_model.py        # Robot kinematics and dynamics
-│   └── collisions.py         # Collision detection primitives
-├── robot_visualization/      # Visualization subpackage
-│   └── robot_visualization/
-│       ├── __init__.py
-│       ├── robot.py          # Robot visualization class
-│       ├── primitives.py     # Visualization primitives
-│       └── urdfpy/           # URDF parsing library
-├── robot_assets/             # Robot URDF files and meshes
-│   └── urdf/
-│       ├── iiwa7.urdf
-│       ├── simple_robot.urdf
-│       └── meshes/
-├── tests/                    # Example scripts and tests
-│   ├── test_robot_model.py
-│   ├── test_collisions.py
-│   ├── test_robot_visualization.py
-│   └── test_robot_animation.py
-├── setup.py
-└── README.md
-```
-
-## API Reference
-
-### RobotModel
-
-Main class for robot kinematics and dynamics computations.
-
-**Constructor:**
-```python
-RobotModel(urdf_file, p0=np.zeros(3), R0=np.eye(3), Tgp=np.eye(4))
-```
-
-**Parameters:**
-- `urdf_file` (str): Path to URDF file (relative to robot_assets/urdf/)
-- `p0` (np.ndarray): Base position [x, y, z]
-- `R0` (np.ndarray): Base rotation matrix (3x3)
-- `Tgp` (np.ndarray): Grasp to end-effector transformation (4x4)
-
-**Methods:**
-- `update_kinematics(frame_name, q, dq)`: Compute forward kinematics and Jacobian
-  - Returns: `(T, J)` where T is SE3 pose and J is 6xN Jacobian
-- `update_dynamics(q, dq)`: Compute mass matrix, Coriolis, and gravity terms
-  - Returns: `(M, c, g)` mass matrix, Coriolis/centrifugal, gravity
-
-### Collision Detection Classes
-
-#### EllipsoidCollision
-```python
-EllipsoidCollision(obstacle)
-```
-- `obstacle` (dict): Dictionary with keys `"type"`, `"T"`, `"xradius"`, `"yradius"`, `"zradius"`
-- `is_in_collision(point)`: Check if point is inside ellipsoid
-
-#### CylinderCollision
-```python
-CylinderCollision(obstacle)
-```
-- `obstacle` (dict): Dictionary with keys `"type"`, `"T"`, `"radius"`, `"height"`
-- `is_in_collision(point)`: Check if point is inside cylinder
-
-#### BoxCollision
-```python
-BoxCollision(obstacle)
-```
-- `obstacle` (dict): Dictionary with keys `"type"`, `"T"`, `"xsize"`, `"ysize"`, `"zsize"`
-- `is_in_collision(point)`: Check if point is inside box
-
-#### create_collision_objects
-```python
-create_collision_objects(obstacles_list)
-```
-Factory function to create collision objects from a list of obstacle definitions.
-
-### Robot (Visualization)
-
-Main class for robot visualization.
-
-**Constructor:**
-```python
-Robot(urdf_file, plotter=None, p0=np.zeros(3), R0=np.eye(3), color='lightgray', opacity=1.0)
-```
-
-**Parameters:**
-- `urdf_file` (str): Path to URDF file (relative to robot_assets/urdf/)
-- `plotter` (pv.Plotter): PyVista plotter instance
-- `p0` (np.ndarray): Base position
-- `R0` (np.ndarray): Base rotation matrix
-- `color` (str): Robot mesh color
-- `opacity` (float): Robot mesh opacity
-
-**Methods:**
-- `set_robot_mesh(id=0)`: Initialize robot mesh
-- `update(q, id=0)`: Update robot configuration
-- `plot_ee(q, ee_link_name, color, size, type)`: Plot end-effector marker
-- `plot_ee_frame(q, ee_link_name)`: Plot end-effector coordinate frame
-- `plot_ee_path(q_path, ee_link_name, color, opacity, line_width)`: Plot end-effector trajectory
-- `fk(q, ee_link_name)`: Compute forward kinematics
-
-### AxesVisualizer
-
-Visualize 3D coordinate frames.
-
-**Constructor:**
-```python
-AxesVisualizer(plotter, origin=None, scale=1.0)
-```
-
-**Methods:**
-- `update(position, rotation)`: Update frame pose
-- `plot_path(p1, p2, color, line_width)`: Draw line between points
-
-### ArrowVisualizer
-
-Visualize 3D arrows.
-
-**Constructor:**
-```python
-ArrowVisualizer(plotter, origin=None, direction=None, scale=1.0, color='white')
-```
-
-**Methods:**
-- `update(origin, direction)`: Update arrow position and direction
 
 ## Examples
 
-See the `tests/` directory for complete examples:
-
-- [test_robot_model.py](tests/test_robot_model.py) - Robot kinematics and dynamics
-- [test_collisions.py](tests/test_collisions.py) - Collision detection
-- [test_robot_visualization.py](tests/test_robot_visualization.py) - Robot visualization with motion planning graphs
-- [test_robot_animation.py](tests/test_robot_animation.py) - Animated robot motion
-
-## Robot Assets
-
-The package includes several robot URDF files in `robot_assets/urdf/`:
-
-- **iiwa7.urdf**: KUKA iiwa 7-DOF collaborative robot
-- **simple_robot.urdf**: Simple 3-DOF robot for testing
-- Additional robots: GoFa5, IRB1100, CRB15000, and more
-
-All mesh files (STL, DAE) are included in the `robot_assets/urdf/meshes/` directory.
-
-## Development
-
-### Running Tests
-
-The test files are example scripts that demonstrate package functionality:
+All scripts run from any working directory:
 
 ```bash
-# Test collision detection
-python tests/test_collisions.py
-
-# Test robot model kinematics
-python tests/test_robot_model.py
-
-# Test robot visualization
-python tests/test_robot_visualization.py
-
-# Test robot animation
-python tests/test_robot_animation.py
-
-# Generate GIF animation
-python tests/test_robot_animation.py --generate_gif
+python tests/test_collisions.py            # collision primitives
+python tests/test_robot_model.py           # kinematics + visualization
+python tests/test_robot_visualization.py   # iiwa7 + roadmap graph
+python examples/generate_readme_images.py  # regenerates docs/images (off-screen)
 ```
 
-### Package Development
+## Repository structure
 
-```bash
-# Install in development mode
-pip install -e ".[dev]"
-
-# Run linting
-flake8 robot_tools robot_visualization
-
-# Run with coverage
-pytest --cov=robot_tools --cov=robot_visualization tests/
 ```
+robot_tools/
+├── robot_tools/              # kinematics, dynamics, collision checking
+├── robot_video_tools/        # video generation, animation, image overlays
+├── robot_visualization/      # git submodule
+│   ├── robot_visualization/  #   the actual visualization package
+│   └── urdfpy/               #   nested submodule: vendored urdfpy fork
+├── robot_assets/             # git submodule: URDF files and meshes
+├── tests/                    # runnable example scripts
+├── examples/                 # README image generation
+├── docs/images/              # generated images used in this README
+└── pyproject.toml            # single install for all four packages
+```
+
+## Robot assets (URDFs and meshes) - Not part of this package
+
+Define your own robots as URDF files in `robot_assets/urdf/` and load them with `RobotModel` and `Robot`. 
+
+## API reference
+
+See [API.md](API.md) for the full reference of all public classes and functions.
 
 ## Troubleshooting
 
-### Import Errors
+**`pip install` produces `UNKNOWN-0.0.0`** — your pip/setuptools is too old to read
+`pyproject.toml` metadata. Upgrade: `python3 -m pip install --upgrade pip "setuptools<80"`.
 
-If you encounter import errors, make sure the package is installed:
-```bash
-pip install -e .
-```
+**`ImportError: ... pinocchio ... undefined symbol`** — another Pinocchio build
+(e.g. robotpkg in `/opt/openrobots`) shadows the pip-installed one via
+`LD_LIBRARY_PATH`. Run with `env -u LD_LIBRARY_PATH python ...` or remove
+`/opt/openrobots/lib` from `LD_LIBRARY_PATH` for sessions using this package.
 
-### URDF Loading Issues
+**Matplotlib/NumPy import errors** — Pinocchio ≥ 4 requires NumPy ≥ 2; modules
+compiled against NumPy 1.x (e.g. apt-installed matplotlib/scipy) fail to import.
+The pip install already pulls compatible versions into your user site; make sure no
+old system versions take precedence (`python3 -m pip list -v`).
 
-URDF files should be placed in `robot_assets/urdf/` or provide absolute paths. The package looks for robot models relative to the installation directory.
+**No display / headless rendering** — pass `off_screen=True` to `pv.Plotter` and use
+`plotter.screenshot(...)`; see `examples/generate_readme_images.py`.
 
-### Visualization Not Showing
-
-Make sure you call `plotter.show()` after setting up your visualization. For headless environments, you may need to configure PyVista's rendering backend.
-
-### Missing Meshes
-
-Ensure all mesh files referenced in the URDF are present in `robot_assets/urdf/meshes/`. The package includes mesh files for the provided robots.
+**`ModuleNotFoundError: urdfpy` or missing meshes** — submodules not initialized:
+`git submodule update --init --recursive`, then reinstall.
 
 ## Citation
 
-If you use this package in your research, please cite:
-
 ```bibtex
 @software{robot_tools,
-  author = {Maximilian Dio},
-  title = {robot_tools: Visualization and Modeling Tools for Robot Path Planning},
-  year = {2025},
-  version = {0.1.0}
+  author  = {Maximilian Dio},
+  title   = {robot_tools: Modeling and Visualization Tools for Robot Path Planning},
+  year    = {2026},
+  version = {0.2.0}
 }
 ```
 
 ## License
 
-[Specify your license here]
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
+MIT — see the package metadata. Built on
+[Pinocchio](https://github.com/stack-of-tasks/pinocchio),
+[PyVista](https://pyvista.org/), and a fork of
+[urdfpy](https://github.com/mmatl/urdfpy).
 
 ## Contact
 
-For questions and support, contact:
-- Maximilian Dio
-- Email: maximilian.dio@fau.de
-
-## Acknowledgments
-
-- Built on [Pinocchio](https://github.com/stack-of-tasks/pinocchio) for robot dynamics
-- Uses [PyVista](https://pyvista.org/) for 3D visualization
-- URDF parsing provided by [urdfpy](https://github.com/mmatl/urdfpy)
+Maximilian Dio — maximilian.dio@fau.de
