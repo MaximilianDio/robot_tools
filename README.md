@@ -242,7 +242,3 @@ MIT — see the package metadata. Built on
 [Pinocchio](https://github.com/stack-of-tasks/pinocchio),
 [PyVista](https://pyvista.org/), and a fork of
 [urdfpy](https://github.com/mmatl/urdfpy).
-
-## Contact
-
-Maximilian Dio — maximilian.dio@fau.de
