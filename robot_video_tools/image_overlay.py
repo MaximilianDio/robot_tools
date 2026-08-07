@@ -145,7 +145,7 @@ class ImageOverlay:
 
     Image filename format: ``xxx_k_s.ms.jpg``
     (``s`` = seconds, ``ms`` = milliseconds, last ``_``-delimited field is ``s.ms``).
-    Image ``k`` is used when ``timestamps[k] < t <= timestamps[k+1]``.
+    Image ``k`` is used when ``timestamps[k] <= t < timestamps[k+1]``.
     """
 
     def __init__(self, image_folder: str, calibration: CalibrationPaths, n_layers: int = 1) -> None:
@@ -193,8 +193,15 @@ class ImageOverlay:
         return self._extra_plotters[i - 1]
 
     def get_frame_index(self, t: float) -> Optional[int]:
-        """Return the index of the image frame corresponding to time t, or None if out of range."""
-        k = int(np.searchsorted(self._timestamps, t, side="left"))
+        """Index of the last image taken at or before ``t``, or None if there is none.
+
+        The ``- 1`` is what makes that "at or before": ``searchsorted`` alone returns the
+        first image at or *after* ``t``, i.e. a picture up to a full camera period into the
+        future of the queried state. Callers that step a fast control log and render once
+        per new frame index then pair each image with the state from one frame earlier,
+        which shows up as the rendered robot lagging behind the real one.
+        """
+        k = int(np.searchsorted(self._timestamps, t, side="right")) - 1
         if k < 0 or k >= len(self._images):
             return None
         return k
@@ -203,7 +210,7 @@ class ImageOverlay:
         """
         Composite the current plotter scene onto the background image at time ``t``.
 
-        Selects image ``k`` where ``timestamps[k] < t <= timestamps[k+1]``.
+        Selects image ``k`` where ``timestamps[k] <= t < timestamps[k+1]``.
 
         Args:
             t: Query timestamp in the same units as the image filenames (seconds).
